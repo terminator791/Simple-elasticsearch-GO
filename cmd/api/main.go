@@ -65,6 +65,8 @@ func setupRouter(productHandler *handlers.ProductHandler) *gin.Engine {
 			products.GET("", productHandler.GetAllProducts)
 			products.POST("", productHandler.CreateProduct)
 			products.GET("/search", productHandler.SearchProducts)
+			// register static batch route before parameterized route to avoid matching "batch" as :searchTerm
+			products.GET("/performance/batch", productHandler.BatchComparePerformance)
 			products.GET("/performance/:searchTerm", productHandler.ComparePerformance)
 			products.GET("/:id", productHandler.GetProduct)
 			products.PUT("/:id", productHandler.UpdateProduct)

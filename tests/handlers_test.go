@@ -74,7 +74,7 @@ func TestProductHandler_HealthCheck(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -112,7 +112,7 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 		reqBody, _ := json.Marshal(createReq)
 		req, _ := http.NewRequest("POST", "/products", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
-		
+
 		w := httptest.NewRecorder()
 		router := gin.New()
 		router.POST("/products", handler.CreateProduct)
@@ -131,7 +131,7 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 		reqBody, _ := json.Marshal(invalidReq)
 		req, _ := http.NewRequest("POST", "/products", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
-		
+
 		w := httptest.NewRecorder()
 		router := gin.New()
 		router.POST("/products", handler.CreateProduct)
@@ -188,22 +188,22 @@ func TestProductHandler_GetAllProducts(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var response map[string]interface{}
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		
+
 		// Verify response structure
 		assert.Contains(t, response, "products")
-		assert.Contains(t, response, "total") 
+		assert.Contains(t, response, "total")
 		assert.Contains(t, response, "aggregations")
 		assert.Contains(t, response, "meta")
-		
+
 		// Verify meta information highlighting Elasticsearch
 		meta := response["meta"].(map[string]interface{})
 		assert.Equal(t, "Elasticsearch", meta["powered_by"])
 		assert.Contains(t, meta["message"], "Elasticsearch")
-		
+
 		mockService.AssertExpectations(t)
 	})
 

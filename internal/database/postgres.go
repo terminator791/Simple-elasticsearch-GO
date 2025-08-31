@@ -218,9 +218,9 @@ func (c *Client) SearchProducts(searchTerm string) ([]models.Product, time.Durat
 
 	searchPattern := "%" + searchTerm + "%"
 	err := c.db.Select(&products, query, searchPattern)
-	
+
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		return nil, duration, fmt.Errorf("failed to search products: %w", err)
 	}

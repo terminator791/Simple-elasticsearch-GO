@@ -136,19 +136,14 @@ func (s *ProductService) GetProductByID(id string) (*models.Product, error) {
 
 // CompareSearchPerformance compares search performance between PostgreSQL and Elasticsearch
 func (s *ProductService) CompareSearchPerformance(searchTerm string) (*models.PerformanceMetrics, error) {
-	// Test PostgreSQL search
+	// Test PostgreSQL search (returns all results without pagination)
 	_, pgDuration, err := s.db.SearchProducts(searchTerm)
 	if err != nil {
 		return nil, fmt.Errorf("PostgreSQL search failed: %w", err)
 	}
 
-	// Test Elasticsearch search
-	searchReq := &models.SearchRequest{
-		Query: searchTerm,
-		Page:  1,
-		Size:  20,
-	}
-	_, esDuration, err := s.es.SearchProducts(searchReq)
+	// Test Elasticsearch search (returns all results without pagination, similar to PostgreSQL)
+	_, esDuration, err := s.es.SearchProductsAll(searchTerm)
 	if err != nil {
 		return nil, fmt.Errorf("Elasticsearch search failed: %w", err)
 	}

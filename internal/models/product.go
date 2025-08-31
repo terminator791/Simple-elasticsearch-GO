@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,10 +55,10 @@ type SearchRequest struct {
 
 // SearchResponse represents search results
 type SearchResponse struct {
-	Products     []Product             `json:"products"`
-	Total        int64                 `json:"total"`
-	Page         int                   `json:"page"`
-	Size         int                   `json:"size"`
+	Products     []Product              `json:"products"`
+	Total        int64                  `json:"total"`
+	Page         int                    `json:"page"`
+	Size         int                    `json:"size"`
 	Aggregations map[string]Aggregation `json:"aggregations"`
 }
 
@@ -78,4 +79,28 @@ type PerformanceMetrics struct {
 	ElasticsearchTime time.Duration `json:"elasticsearch_time"`
 	SpeedupFactor     float64       `json:"speedup_factor"`
 	Query             string        `json:"query"`
+}
+
+// MarshalJSON implements custom JSON marshalling to format durations as human-readable strings
+func (p PerformanceMetrics) MarshalJSON() ([]byte, error) {
+	type perfAlias struct {
+		PostgreSQLTime    string  `json:"postgresql_time"`
+		ElasticsearchTime string  `json:"elasticsearch_time"`
+		SpeedupFactor     float64 `json:"speedup_factor"`
+		Query             string  `json:"query"`
+	}
+
+	a := perfAlias{
+		PostgreSQLTime:    p.PostgreSQLTime.String(),
+		ElasticsearchTime: p.ElasticsearchTime.String(),
+		SpeedupFactor:     p.SpeedupFactor,
+		Query:             p.Query,
+	}
+
+	return jsonMarshal(a)
+}
+
+// jsonMarshal is a tiny wrapper to avoid importing encoding/json at top-level twice in generated patches
+func jsonMarshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
 }

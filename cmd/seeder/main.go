@@ -41,8 +41,8 @@ func main() {
 	logger.InfoLogger.Printf("Seeding %d products...", totalProducts)
 
 	// Product data templates
-	brands := []string{"Apple", "Samsung", "Sony", "Dell", "HP", "Lenovo", "Microsoft", "Google", "Amazon", "Nike", "Adidas", "Canon", "Nikon", "LG", "Panasonic", "Philips", "Bosch", "Siemens", "Toyota", "Honda"}
-	
+	brands := []string{"Philips", "Samsung"}
+
 	productTemplates := []struct {
 		namePrefix  string
 		description string
@@ -73,40 +73,40 @@ func main() {
 	// Seed products in batches for better performance
 	batchSize := 100
 	successCount := 0
-	
+
 	for i := 0; i < totalProducts; i++ {
 		// Select random template and brand
 		template := productTemplates[rand.Intn(len(productTemplates))]
 		brand := brands[rand.Intn(len(brands))]
-		
+
 		// Generate product name with variation
 		productName := fmt.Sprintf("%s %s %d", brand, template.namePrefix, rand.Intn(100)+1)
-		
+
 		// Generate price based on category
 		var basePrice float64
 		switch template.category {
 		case "Smartphones", "Laptops":
 			basePrice = 500 + rand.Float64()*1500 // $500-$2000
 		case "Tablets":
-			basePrice = 200 + rand.Float64()*800  // $200-$1000
+			basePrice = 200 + rand.Float64()*800 // $200-$1000
 		case "Headphones", "Speakers":
-			basePrice = 50 + rand.Float64()*450   // $50-$500
+			basePrice = 50 + rand.Float64()*450 // $50-$500
 		case "Cameras":
 			basePrice = 300 + rand.Float64()*1700 // $300-$2000
 		case "Gaming":
-			basePrice = 30 + rand.Float64()*170   // $30-$200
+			basePrice = 30 + rand.Float64()*170 // $30-$200
 		case "Sports", "Fitness":
-			basePrice = 25 + rand.Float64()*275   // $25-$300
+			basePrice = 25 + rand.Float64()*275 // $25-$300
 		default:
-			basePrice = 20 + rand.Float64()*480   // $20-$500
+			basePrice = 20 + rand.Float64()*480 // $20-$500
 		}
-		
+
 		// Round to 2 decimal places
 		price := float64(int(basePrice*100)) / 100
-		
+
 		// Generate stock quantity
 		stockQuantity := rand.Intn(100) + 1 // 1-100
-		
+
 		// Create product request
 		req := &models.CreateProductRequest{
 			Name:          productName,
@@ -125,7 +125,7 @@ func main() {
 		}
 
 		successCount++
-		
+
 		// Log progress every 500 products
 		if (i+1)%500 == 0 {
 			logger.InfoLogger.Printf("Progress: %d/%d products created", i+1, totalProducts)
@@ -141,7 +141,7 @@ func main() {
 	}
 
 	logger.InfoLogger.Printf("Seeding completed! Successfully created %d out of %d products", successCount, totalProducts)
-	
+
 	// Log some statistics
 	logger.InfoLogger.Println("Seeder finished. You can now:")
 	logger.InfoLogger.Println("- Use the API to search products: GET /api/v1/products/search")

@@ -418,6 +418,112 @@ func (c *Client) BulkIndex(products []models.Product) error {
 	return nil
 }
 
+// SearchProductsAll performs simple search without pagination (for performance comparison)
+func (c *Client) SearchProductsAll(searchTerm string) ([]models.Product, time.Duration, error) {
+	start := time.Now()
+
+	// Build simple search query similar to PostgreSQL (ILIKE on multiple fields)
+	query := map[string]interface{}{}
+	if searchTerm != "" {
+		query = map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"match": map[string]interface{}{
+							"name": map[string]interface{}{
+								"query": searchTerm,
+								"operator": "or",
+							},
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"description": map[string]interface{}{
+								"query": searchTerm,
+								"operator": "or",
+							},
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"brand": map[string]interface{}{
+								"query": searchTerm,
+								"operator": "or",
+							},
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"category": map[string]interface{}{
+								"query": searchTerm,
+								"operator": "or",
+							},
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		}
+	} else {
+		query = map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		}
+	}
+
+	searchBody := map[string]interface{}{
+		"query": query,
+		"size":  10000, // Large size to get all results (adjust based on your data)
+		"sort": []map[string]interface{}{
+			{
+				"created_at": map[string]interface{}{
+					"order": "desc",
+				},
+			},
+		},
+	}
+
+	searchJSON, err := json.Marshal(searchBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to marshal search query: %w", err)
+	}
+
+	req := esapi.SearchRequest{
+		Index: []string{ProductsIndex},
+		Body:  bytes.NewReader(searchJSON),
+	}
+
+	res, err := req.Do(context.Background(), c.es)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to search products: %w", err)
+	}
+	defer res.Body.Close()
+
+	duration := time.Since(start)
+
+	if res.IsError() {
+		return nil, duration, fmt.Errorf("search request failed: %s", res.Status())
+	}
+
+	var searchResponse struct {
+		Hits struct {
+			Hits []struct {
+				Source models.Product `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&searchResponse); err != nil {
+		return nil, duration, fmt.Errorf("failed to decode search response: %w", err)
+	}
+
+	products := make([]models.Product, len(searchResponse.Hits.Hits))
+	for i, hit := range searchResponse.Hits.Hits {
+		products[i] = hit.Source
+	}
+
+	return products, duration, nil
+}
+
 // ElasticsearchResponse represents the response from Elasticsearch
 type ElasticsearchResponse struct {
 	Hits struct {

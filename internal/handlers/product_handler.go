@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/models"
@@ -192,6 +193,41 @@ func (h *ProductHandler) ComparePerformance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, metrics)
+}
+
+// BatchComparePerformance handles GET /products/performance/batch?terms=one,two
+func (h *ProductHandler) BatchComparePerformance(c *gin.Context) {
+	termsParam := c.Query("terms")
+	if termsParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "terms query param is required (comma separated)"})
+		return
+	}
+
+	terms := []string{}
+	for _, t := range strings.Split(termsParam, ",") {
+		tt := strings.TrimSpace(t)
+		if tt != "" {
+			terms = append(terms, tt)
+		}
+	}
+
+	if len(terms) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no valid terms provided"})
+		return
+	}
+
+	results := []models.PerformanceMetrics{}
+	for _, term := range terms {
+		metrics, err := h.productService.CompareSearchPerformance(term)
+		if err != nil {
+			// include an error entry instead of failing the whole batch
+			results = append(results, models.PerformanceMetrics{Query: term, SpeedupFactor: 0})
+			continue
+		}
+		results = append(results, *metrics)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"results": results})
 }
 
 // HealthCheck handles GET /health

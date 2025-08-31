@@ -135,7 +135,7 @@ func TestSearchResponse(t *testing.T) {
 	assert.Equal(t, int64(25), response.Total)
 	assert.Equal(t, 1, response.Page)
 	assert.Equal(t, 20, response.Size)
-	
+
 	// Test aggregations
 	brandAgg, exists := response.Aggregations["brands"]
 	assert.True(t, exists)
