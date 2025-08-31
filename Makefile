@@ -26,6 +26,14 @@ run: build
 seed: build
 	./bin/seeder
 
+# Run seeder inside docker network (avoids host-local Postgres conflicts)
+.PHONY: docker-seed
+docker-seed:
+	# Run seeder using golang container attached to compose network so it connects to services by name
+	docker run --rm --network simple-elasticsearch-go_default -v $(PWD):/app -w /app \
+		-e DB_HOST=postgres -e DB_PORT=5432 -e DB_USER=postgres -e DB_PASSWORD=postgres -e DB_NAME=ecommerce \
+		-e ES_HOST=http://elasticsearch:9200 golang:1.25-alpine sh -c "apk add --no-cache git ca-certificates && go mod download && go run ./cmd/seeder"
+
 # Migrate data to Elasticsearch
 migrate: build
 	./bin/migrator
