@@ -27,11 +27,6 @@ go.work.sum
 # env file
 .env
 
-# Built binaries
-bin/
-/seeder
-/migrator
-/app
 
 # Editor/IDE
 # .idea/
