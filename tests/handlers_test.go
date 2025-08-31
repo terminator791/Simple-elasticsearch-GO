@@ -50,6 +50,11 @@ func (m *MockProductService) SearchProducts(req *models.SearchRequest) (*models.
 	return args.Get(0).(*models.SearchResponse), args.Error(1)
 }
 
+func (m *MockProductService) GetAllProducts(page, size int) (*models.SearchResponse, error) {
+	args := m.Called(page, size)
+	return args.Get(0).(*models.SearchResponse), args.Error(1)
+}
+
 func (m *MockProductService) CompareSearchPerformance(searchTerm string) (*models.PerformanceMetrics, error) {
 	args := m.Called(searchTerm)
 	return args.Get(0).(*models.PerformanceMetrics), args.Error(1)

@@ -62,6 +62,7 @@ func setupRouter(productHandler *handlers.ProductHandler) *gin.Engine {
 	{
 		products := v1.Group("/products")
 		{
+			products.GET("", productHandler.GetAllProducts)
 			products.POST("", productHandler.CreateProduct)
 			products.GET("/search", productHandler.SearchProducts)
 			products.GET("/performance/:searchTerm", productHandler.ComparePerformance)
