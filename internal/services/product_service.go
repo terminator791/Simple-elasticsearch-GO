@@ -173,6 +173,38 @@ func (s *ProductService) GetAllProductsFromDB() ([]models.Product, error) {
 	return s.db.GetAllProducts()
 }
 
+// GetAllProducts retrieves all products using Elasticsearch (Query side)
+// This demonstrates Elasticsearch's power for fast retrieval with aggregations
+func (s *ProductService) GetAllProducts(page, size int) (*models.SearchResponse, error) {
+	// Set defaults if not provided
+	if page <= 0 {
+		page = 1
+	}
+	if size <= 0 {
+		size = 50 // Default to 50 for all products view
+	}
+	if size > 1000 {
+		size = 1000 // Cap at 1000 for performance
+	}
+
+	// Create a search request to get all products with aggregations
+	req := &models.SearchRequest{
+		Query:     "", // Empty query to match all products
+		Page:      page,
+		Size:      size,
+		SortBy:    "created_at",
+		SortOrder: "desc",
+	}
+
+	// Use Elasticsearch to get all products with powerful aggregations
+	result, _, err := s.es.SearchProducts(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all products: %w", err)
+	}
+
+	return result, nil
+}
+
 // BulkIndexProducts performs bulk indexing to Elasticsearch
 func (s *ProductService) BulkIndexProducts(products []models.Product) error {
 	return s.es.BulkIndex(products)

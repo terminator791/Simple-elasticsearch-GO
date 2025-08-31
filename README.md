@@ -29,7 +29,7 @@ This project demonstrates a masterclass implementation of:
 ├── cmd/
 │   ├── api/           # Main API server
 │   ├── migrator/      # Data migration tool (PostgreSQL → Elasticsearch)
-│   └── seeder/        # Product seeding tool (1000+ products)
+│   └── seeder/        # Product seeding tool (5000 products)
 ├── internal/
 │   ├── config/        # Configuration management
 │   ├── models/        # Data models and DTOs
@@ -78,9 +78,20 @@ This will start:
 # Build the seeder
 go build -o seeder ./cmd/seeder
 
-# Run seeder to populate database with 1000 products
+# Run seeder to populate database with 5000 diverse products
 ./seeder
+
+# Alternative: Use make commands
+make seed
 ```
+
+**Seeder Features:**
+- Creates **5000 realistic products** with diverse data
+- **20 different brands**: Apple, Samsung, Sony, Dell, HP, Lenovo, Microsoft, etc.
+- **Multiple categories**: Smartphones, Laptops, Gaming, Sports, Home, Kitchen, etc.
+- **Realistic pricing** based on product categories
+- **Batch processing** with progress logging every 500 products
+- **CQRS compliance**: Writes to PostgreSQL → automatically indexes to Elasticsearch
 
 ### 4. Migrate Data to Elasticsearch
 
@@ -120,6 +131,9 @@ DELETE /api/v1/products/{id}
 
 # Get single product (from PostgreSQL)
 GET /api/v1/products/{id}
+
+# Get all products with pagination (powered by Elasticsearch)
+GET /api/v1/products?page=1&size=50
 ```
 
 ### Advanced Search (CQRS Queries - Elasticsearch Only)
@@ -136,6 +150,44 @@ GET /api/v1/products/search?q=wireless headphones
 
 # Filter by price range
 GET /api/v1/products/search?min_price=100&max_price=500
+
+# Get all products (showcases Elasticsearch aggregations)
+GET /api/v1/products?page=1&size=50
+```
+
+**🚀 Elasticsearch Power Showcase - GetAllProducts Response:**
+```json
+{
+  "products": [...],
+  "total": 5000,
+  "page": 1, 
+  "size": 50,
+  "aggregations": {
+    "brands": {
+      "buckets": [
+        {"key": "Apple", "doc_count": 245},
+        {"key": "Samsung", "doc_count": 233},
+        {"key": "Sony", "doc_count": 198}
+      ]
+    },
+    "categories": {
+      "buckets": [
+        {"key": "Smartphones", "doc_count": 890},
+        {"key": "Laptops", "doc_count": 645}
+      ]
+    }
+  },
+  "meta": {
+    "message": "Data retrieved using Elasticsearch for fast search and aggregations",
+    "powered_by": "Elasticsearch",
+    "features": [
+      "Fast full-text search",
+      "Real-time aggregations", 
+      "Scalable pagination",
+      "Advanced filtering capabilities"
+    ]
+  }
+}
 ```
 
 ### Performance Comparison

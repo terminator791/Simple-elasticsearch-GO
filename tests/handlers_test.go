@@ -50,6 +50,11 @@ func (m *MockProductService) SearchProducts(req *models.SearchRequest) (*models.
 	return args.Get(0).(*models.SearchResponse), args.Error(1)
 }
 
+func (m *MockProductService) GetAllProducts(page, size int) (*models.SearchResponse, error) {
+	args := m.Called(page, size)
+	return args.Get(0).(*models.SearchResponse), args.Error(1)
+}
+
 func (m *MockProductService) CompareSearchPerformance(searchTerm string) (*models.PerformanceMetrics, error) {
 	args := m.Called(searchTerm)
 	return args.Get(0).(*models.PerformanceMetrics), args.Error(1)
@@ -133,5 +138,93 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+func TestProductHandler_GetAllProducts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockService := new(MockProductService)
+	handler := handlers.NewProductHandler(mockService)
+
+	// Test successful retrieval
+	t.Run("successful retrieval", func(t *testing.T) {
+		expectedResponse := &models.SearchResponse{
+			Products: []models.Product{
+				{
+					Name:        "iPhone 15 Pro",
+					Description: "Latest Apple smartphone",
+					Brand:       "Apple",
+					Category:    "Smartphones",
+					Price:       999.99,
+				},
+				{
+					Name:        "Samsung Galaxy S24",
+					Description: "Android flagship smartphone",
+					Brand:       "Samsung",
+					Category:    "Smartphones",
+					Price:       899.99,
+				},
+			},
+			Total: 2,
+			Page:  1,
+			Size:  50,
+			Aggregations: map[string]models.Aggregation{
+				"brands": {
+					Buckets: []models.Bucket{
+						{Key: "Apple", Count: 1},
+						{Key: "Samsung", Count: 1},
+					},
+				},
+			},
+		}
+
+		mockService.On("GetAllProducts", 1, 50).Return(expectedResponse, nil).Once()
+
+		req, _ := http.NewRequest("GET", "/products", nil)
+		w := httptest.NewRecorder()
+		router := gin.New()
+		router.GET("/products", handler.GetAllProducts)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		
+		// Verify response structure
+		assert.Contains(t, response, "products")
+		assert.Contains(t, response, "total") 
+		assert.Contains(t, response, "aggregations")
+		assert.Contains(t, response, "meta")
+		
+		// Verify meta information highlighting Elasticsearch
+		meta := response["meta"].(map[string]interface{})
+		assert.Equal(t, "Elasticsearch", meta["powered_by"])
+		assert.Contains(t, meta["message"], "Elasticsearch")
+		
+		mockService.AssertExpectations(t)
+	})
+
+	// Test with pagination parameters
+	t.Run("with pagination", func(t *testing.T) {
+		expectedResponse := &models.SearchResponse{
+			Products: []models.Product{},
+			Total:    100,
+			Page:     2,
+			Size:     25,
+		}
+
+		mockService.On("GetAllProducts", 2, 25).Return(expectedResponse, nil).Once()
+
+		req, _ := http.NewRequest("GET", "/products?page=2&size=25", nil)
+		w := httptest.NewRecorder()
+		router := gin.New()
+		router.GET("/products", handler.GetAllProducts)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		mockService.AssertExpectations(t)
 	})
 }
