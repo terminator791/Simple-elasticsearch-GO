@@ -31,12 +31,19 @@ func (s *ProductService) CreateProduct(req *models.CreateProductRequest) (*model
 	// Create product model
 	product := &models.Product{
 		ID:            uuid.New(),
+		VendorID:      req.VendorID,
 		Name:          req.Name,
 		Description:   req.Description,
 		Brand:         req.Brand,
 		Category:      req.Category,
 		Price:         req.Price,
 		StockQuantity: req.StockQuantity,
+		SKU:           req.SKU,
+		IsActive:      true,
+		Weight:        req.Weight,
+		Dimensions:    req.Dimensions,
+		ImageURLs:     req.ImageURLs,
+		Tags:          req.Tags,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}

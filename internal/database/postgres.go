@@ -3,9 +3,12 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/config"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/models"
@@ -50,10 +53,13 @@ func (c *Client) Close() error {
 // CreateProduct creates a new product in the database
 func (c *Client) CreateProduct(product *models.Product) error {
 	query := `
-		INSERT INTO products (id, name, description, brand, category, price, stock_quantity, created_at, updated_at)
-		VALUES (:id, :name, :description, :brand, :category, :price, :stock_quantity, :created_at, :updated_at)`
+		INSERT INTO products (id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`
 
-	_, err := c.db.NamedExec(query, product)
+	_, err := c.db.Exec(query, 
+		product.ID, product.VendorID, product.Name, product.Description, product.Brand, product.Category, 
+		product.Price, product.StockQuantity, product.SKU, product.IsActive, product.Weight, product.Dimensions, 
+		pq.Array(product.ImageURLs), pq.Array(product.Tags), product.CreatedAt, product.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create product: %w", err)
 	}
@@ -64,7 +70,7 @@ func (c *Client) CreateProduct(product *models.Product) error {
 // GetProductByID retrieves a product by ID
 func (c *Client) GetProductByID(id string) (*models.Product, error) {
 	var product models.Product
-	query := `SELECT id, name, description, brand, category, price, stock_quantity, created_at, updated_at 
+	query := `SELECT id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at 
 			  FROM products WHERE id = $1`
 
 	err := c.db.Get(&product, query, id)
@@ -226,4 +232,192 @@ func (c *Client) SearchProducts(searchTerm string) ([]models.Product, time.Durat
 	}
 
 	return products, duration, nil
+}
+
+// User-related database operations
+
+// CreateUser creates a new user in the database
+func (c *Client) CreateUser(user *models.User) error {
+	query := `
+		INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+
+	_, err := c.db.Exec(query, user.ID, user.Email, user.Password, user.FirstName, user.LastName, user.Role, user.IsActive, user.CreatedAt, user.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return nil
+}
+
+// GetUserByEmail retrieves a user by email
+func (c *Client) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	query := `SELECT id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at 
+			  FROM users WHERE email = $1`
+
+	err := c.db.Get(&user, query, email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// GetUserByID retrieves a user by ID
+func (c *Client) GetUserByID(id string) (*models.User, error) {
+	var user models.User
+	query := `SELECT id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at 
+			  FROM users WHERE id = $1`
+
+	err := c.db.Get(&user, query, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// UpdateUser updates a user in the database
+func (c *Client) UpdateUser(id string, updates *models.UserUpdateRequest) (*models.User, error) {
+	// Build dynamic update query
+	setParts := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	if updates.FirstName != nil {
+		setParts = append(setParts, fmt.Sprintf("first_name = $%d", argIndex))
+		args = append(args, *updates.FirstName)
+		argIndex++
+	}
+	if updates.LastName != nil {
+		setParts = append(setParts, fmt.Sprintf("last_name = $%d", argIndex))
+		args = append(args, *updates.LastName)
+		argIndex++
+	}
+	if updates.Role != nil {
+		setParts = append(setParts, fmt.Sprintf("role = $%d", argIndex))
+		args = append(args, *updates.Role)
+		argIndex++
+	}
+	if updates.IsActive != nil {
+		setParts = append(setParts, fmt.Sprintf("is_active = $%d", argIndex))
+		args = append(args, *updates.IsActive)
+		argIndex++
+	}
+
+	if len(setParts) == 0 {
+		return c.GetUserByID(id)
+	}
+
+	setClause := strings.Join(setParts, ", ")
+	query := fmt.Sprintf(`
+		UPDATE users 
+		SET %s, updated_at = CURRENT_TIMESTAMP 
+		WHERE id = $%d
+		RETURNING id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at`,
+		setClause, argIndex)
+
+	args = append(args, id)
+
+	var user models.User
+	err := c.db.Get(&user, query, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return &user, nil
+}
+
+// GetUsersByRole retrieves users by role with pagination
+func (c *Client) GetUsersByRole(role models.UserRole, page, size int) ([]models.User, int64, error) {
+	offset := (page - 1) * size
+
+	// Get users
+	var users []models.User
+	query := `SELECT id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at 
+			  FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+
+	err := c.db.Select(&users, query, role, size, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	// Get total count
+	var total int64
+	countQuery := `SELECT COUNT(*) FROM users WHERE role = $1`
+	err = c.db.Get(&total, countQuery, role)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get user count: %w", err)
+	}
+
+	return users, total, nil
+}
+
+// GetCustomerStats retrieves order count and total spent for a customer
+func (c *Client) GetCustomerStats(userID uuid.UUID) (int, float64, error) {
+	var orderCount int
+	var totalSpent float64
+
+	query := `SELECT COALESCE(COUNT(*), 0), COALESCE(SUM(total_amount), 0) 
+			  FROM orders WHERE user_id = $1 AND status NOT IN ('cancelled', 'refunded')`
+
+	err := c.db.QueryRow(query, userID).Scan(&orderCount, &totalSpent)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get customer stats: %w", err)
+	}
+
+	return orderCount, totalSpent, nil
+}
+
+// GetUserReviewCount retrieves the number of reviews written by a user
+func (c *Client) GetUserReviewCount(userID uuid.UUID) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM reviews WHERE user_id = $1`
+
+	err := c.db.Get(&count, query, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user review count: %w", err)
+	}
+
+	return count, nil
+}
+
+// GetVendorProductCount retrieves the number of products owned by a vendor
+func (c *Client) GetVendorProductCount(userID uuid.UUID) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM products WHERE vendor_id = $1`
+
+	err := c.db.Get(&count, query, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get vendor product count: %w", err)
+	}
+
+	return count, nil
+}
+
+// GetVendorReviewCount retrieves the number of reviews for a vendor's products
+func (c *Client) GetVendorReviewCount(userID uuid.UUID) (int, error) {
+	var count int
+	query := `
+		SELECT COUNT(*) 
+		FROM reviews r 
+		JOIN products p ON r.product_id = p.id 
+		WHERE p.vendor_id = $1`
+
+	err := c.db.Get(&count, query, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get vendor review count: %w", err)
+	}
+
+	return count, nil
 }
