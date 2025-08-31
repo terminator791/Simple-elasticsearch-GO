@@ -38,6 +38,7 @@ func main() {
 	// Initialize services
 	productService := services.NewProductService(db, es)
 	userService := services.NewUserService(db, jwtService, passwordService)
+	orderService := services.NewOrderService(db)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(jwtService)
@@ -45,9 +46,10 @@ func main() {
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productService)
 	userHandler := handlers.NewUserHandler(userService)
+	orderHandler := handlers.NewOrderHandler(orderService)
 
 	// Setup router
-	router := setupRouter(productHandler, userHandler, authMiddleware)
+	router := setupRouter(productHandler, userHandler, orderHandler, authMiddleware)
 
 	// Start server
 	logger.InfoLogger.Printf("Starting server on port %s", cfg.Server.Port)
@@ -56,7 +58,7 @@ func main() {
 	}
 }
 
-func setupRouter(productHandler *handlers.ProductHandler, userHandler *handlers.UserHandler, authMiddleware *middleware.AuthMiddleware) *gin.Engine {
+func setupRouter(productHandler *handlers.ProductHandler, userHandler *handlers.UserHandler, orderHandler *handlers.OrderHandler, authMiddleware *middleware.AuthMiddleware) *gin.Engine {
 	router := gin.New()
 
 	// Add middleware
@@ -90,6 +92,37 @@ func setupRouter(productHandler *handlers.ProductHandler, userHandler *handlers.
 			users.PUT("/:id", authMiddleware.RequireAdmin(), userHandler.UpdateUser)
 			users.POST("/:id/deactivate", authMiddleware.RequireAdmin(), userHandler.DeactivateUser)
 			users.POST("/:id/activate", authMiddleware.RequireAdmin(), userHandler.ActivateUser)
+		}
+
+		// Cart routes
+		cart := v1.Group("/cart")
+		cart.Use(authMiddleware.RequireAuth())
+		{
+			cart.GET("", orderHandler.GetCart)
+			cart.POST("/items", orderHandler.AddToCart)
+			cart.PUT("/items/:id", orderHandler.UpdateCartItem)
+			cart.DELETE("/items/:id", orderHandler.RemoveFromCart)
+			cart.DELETE("", orderHandler.ClearCart)
+		}
+
+		// Order routes
+		orders := v1.Group("/orders")
+		{
+			// Customer routes (protected)
+			orders.POST("", authMiddleware.RequireAuth(), orderHandler.CreateOrder)
+			orders.GET("", authMiddleware.RequireAuth(), orderHandler.GetUserOrders)
+			orders.GET("/:id", authMiddleware.RequireAuth(), orderHandler.GetOrder)
+			orders.POST("/:id/cancel", authMiddleware.RequireAuth(), orderHandler.CancelOrder)
+
+			// Admin/Vendor routes
+			orders.PUT("/:id/status", authMiddleware.RequireVendorOrAdmin(), orderHandler.UpdateOrderStatus)
+		}
+
+		// Admin routes
+		admin := v1.Group("/admin")
+		admin.Use(authMiddleware.RequireAdmin())
+		{
+			admin.GET("/orders/analytics", orderHandler.GetOrderAnalytics)
 		}
 
 		// Product routes
