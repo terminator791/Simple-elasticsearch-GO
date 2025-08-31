@@ -29,9 +29,9 @@ go.work.sum
 
 # Built binaries
 bin/
-seeder
-migrator
-app
+/seeder
+/migrator
+/app
 
 # Editor/IDE
 # .idea/
