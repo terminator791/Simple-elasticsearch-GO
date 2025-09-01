@@ -59,6 +59,25 @@ func NewClient(cfg *config.ElasticsearchConfig) (*Client, error) {
 // createProductsIndex creates the products index with explicit mapping
 func (c *Client) createProductsIndex() error {
 	mapping := map[string]interface{}{
+		"settings": map[string]interface{}{
+			"analysis": map[string]interface{}{
+				"analyzer": map[string]interface{}{
+					"ngram_analyzer": map[string]interface{}{
+						"type":      "custom",
+						"tokenizer": "ngram_tokenizer",
+						"filter":    []string{"lowercase"},
+					},
+				},
+				"tokenizer": map[string]interface{}{
+					"ngram_tokenizer": map[string]interface{}{
+						"type":        "ngram",
+						"min_gram":    2,
+						"max_gram":    20,
+						"token_chars": []string{"letter", "digit"},
+					},
+				},
+			},
+		},
 		"mappings": map[string]interface{}{
 			"properties": map[string]interface{}{
 				"id": map[string]interface{}{
@@ -70,16 +89,38 @@ func (c *Client) createProductsIndex() error {
 						"keyword": map[string]interface{}{
 							"type": "keyword",
 						},
+						"ngram": map[string]interface{}{
+							"type":     "text",
+							"analyzer": "ngram_analyzer",
+						},
 					},
 				},
 				"description": map[string]interface{}{
 					"type": "text",
+					"fields": map[string]interface{}{
+						"ngram": map[string]interface{}{
+							"type":     "text",
+							"analyzer": "ngram_analyzer",
+						},
+					},
 				},
 				"brand": map[string]interface{}{
 					"type": "keyword",
+					"fields": map[string]interface{}{
+						"ngram": map[string]interface{}{
+							"type":     "text",
+							"analyzer": "ngram_analyzer",
+						},
+					},
 				},
 				"category": map[string]interface{}{
 					"type": "keyword",
+					"fields": map[string]interface{}{
+						"ngram": map[string]interface{}{
+							"type":     "text",
+							"analyzer": "ngram_analyzer",
+						},
+					},
 				},
 				"price": map[string]interface{}{
 					"type": "float",
@@ -366,6 +407,28 @@ func (c *Client) buildSort(searchReq *models.SearchRequest) []map[string]interfa
 	}
 }
 
+// RecreateIndex deletes and recreates the products index (useful for testing mapping changes)
+func (c *Client) RecreateIndex() error {
+	// Delete existing index
+	deleteReq := esapi.IndicesDeleteRequest{
+		Index: []string{ProductsIndex},
+	}
+
+	deleteRes, err := deleteReq.Do(context.Background(), c.es)
+	if err != nil {
+		return fmt.Errorf("failed to delete index: %w", err)
+	}
+	deleteRes.Body.Close()
+
+	// Recreate index with new mapping
+	if err := c.createProductsIndex(); err != nil {
+		return fmt.Errorf("failed to recreate index: %w", err)
+	}
+
+	logger.InfoLogger.Printf("Products index recreated successfully")
+	return nil
+}
+
 // BulkIndex performs bulk indexing of products
 func (c *Client) BulkIndex(products []models.Product) error {
 	if len(products) == 0 {
@@ -425,39 +488,28 @@ func (c *Client) SearchProductsAll(searchTerm string) ([]models.Product, time.Du
 	// Build simple search query similar to PostgreSQL (ILIKE on multiple fields)
 	query := map[string]interface{}{}
 	if searchTerm != "" {
+		// Use ngram fields for better partial matching performance
 		query = map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
 						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query": searchTerm,
-								"operator": "or",
-							},
+							"name.ngram": searchTerm,
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"description": map[string]interface{}{
-								"query": searchTerm,
-								"operator": "or",
-							},
+							"description.ngram": searchTerm,
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"brand": map[string]interface{}{
-								"query": searchTerm,
-								"operator": "or",
-							},
+							"brand.ngram": searchTerm,
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"category": map[string]interface{}{
-								"query": searchTerm,
-								"operator": "or",
-							},
+							"category.ngram": searchTerm,
 						},
 					},
 				},
@@ -475,11 +527,10 @@ func (c *Client) SearchProductsAll(searchTerm string) ([]models.Product, time.Du
 		"size":  10000, // Large size to get all results (adjust based on your data)
 		"sort": []map[string]interface{}{
 			{
-				"created_at": map[string]interface{}{
-					"order": "desc",
-				},
+				"_doc": map[string]interface{}{}, // Use _doc for fastest sorting when order doesn't matter
 			},
 		},
+		"_source": []string{"id", "name", "description", "brand", "category", "price", "stock_quantity", "created_at"}, // Only fetch needed fields
 	}
 
 	searchJSON, err := json.Marshal(searchBody)
