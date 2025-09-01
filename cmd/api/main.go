@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/terminator791/Simple-elasticsearch-GO/internal/auth"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/config"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/database"
 	"github.com/terminator791/Simple-elasticsearch-GO/internal/elasticsearch"
@@ -30,14 +31,25 @@ func main() {
 		log.Fatal("Failed to connect to Elasticsearch:", err)
 	}
 
+	// Initialize authentication services
+	jwtService := auth.NewJWTService(cfg.JWT.SecretKey, cfg.JWT.Issuer)
+	passwordService := auth.NewPasswordService(nil)
+
 	// Initialize services
 	productService := services.NewProductService(db, es)
+	userService := services.NewUserService(db, jwtService, passwordService)
+	orderService := services.NewOrderService(db)
+
+	// Initialize middleware
+	authMiddleware := middleware.NewAuthMiddleware(jwtService)
 
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productService)
+	userHandler := handlers.NewUserHandler(userService)
+	orderHandler := handlers.NewOrderHandler(orderService)
 
 	// Setup router
-	router := setupRouter(productHandler)
+	router := setupRouter(productHandler, userHandler, orderHandler, authMiddleware)
 
 	// Start server
 	logger.InfoLogger.Printf("Starting server on port %s", cfg.Server.Port)
@@ -46,7 +58,7 @@ func main() {
 	}
 }
 
-func setupRouter(productHandler *handlers.ProductHandler) *gin.Engine {
+func setupRouter(productHandler *handlers.ProductHandler, userHandler *handlers.UserHandler, orderHandler *handlers.OrderHandler, authMiddleware *middleware.AuthMiddleware) *gin.Engine {
 	router := gin.New()
 
 	// Add middleware
@@ -60,17 +72,73 @@ func setupRouter(productHandler *handlers.ProductHandler) *gin.Engine {
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
+		// Authentication routes (public)
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", userHandler.Register)
+			auth.POST("/login", userHandler.Login)
+		}
+
+		// User routes
+		users := v1.Group("/users")
+		{
+			// Protected routes
+			users.GET("/profile", authMiddleware.RequireAuth(), userHandler.GetProfile)
+			users.PUT("/profile", authMiddleware.RequireAuth(), userHandler.UpdateProfile)
+
+			// Admin only routes
+			users.GET("", authMiddleware.RequireAdmin(), userHandler.GetUsersByRole)
+			users.GET("/:id", authMiddleware.RequireAdmin(), userHandler.GetUser)
+			users.PUT("/:id", authMiddleware.RequireAdmin(), userHandler.UpdateUser)
+			users.POST("/:id/deactivate", authMiddleware.RequireAdmin(), userHandler.DeactivateUser)
+			users.POST("/:id/activate", authMiddleware.RequireAdmin(), userHandler.ActivateUser)
+		}
+
+		// Cart routes
+		cart := v1.Group("/cart")
+		cart.Use(authMiddleware.RequireAuth())
+		{
+			cart.GET("", orderHandler.GetCart)
+			cart.POST("/items", orderHandler.AddToCart)
+			cart.PUT("/items/:id", orderHandler.UpdateCartItem)
+			cart.DELETE("/items/:id", orderHandler.RemoveFromCart)
+			cart.DELETE("", orderHandler.ClearCart)
+		}
+
+		// Order routes
+		orders := v1.Group("/orders")
+		{
+			// Customer routes (protected)
+			orders.POST("", authMiddleware.RequireAuth(), orderHandler.CreateOrder)
+			orders.GET("", authMiddleware.RequireAuth(), orderHandler.GetUserOrders)
+			orders.GET("/:id", authMiddleware.RequireAuth(), orderHandler.GetOrder)
+			orders.POST("/:id/cancel", authMiddleware.RequireAuth(), orderHandler.CancelOrder)
+
+			// Admin/Vendor routes
+			orders.PUT("/:id/status", authMiddleware.RequireVendorOrAdmin(), orderHandler.UpdateOrderStatus)
+		}
+
+		// Admin routes
+		admin := v1.Group("/admin")
+		admin.Use(authMiddleware.RequireAdmin())
+		{
+			admin.GET("/orders/analytics", orderHandler.GetOrderAnalytics)
+		}
+
+		// Product routes
 		products := v1.Group("/products")
 		{
+			// Public routes
 			products.GET("", productHandler.GetAllProducts)
-			products.POST("", productHandler.CreateProduct)
 			products.GET("/search", productHandler.SearchProducts)
-			// register static batch route before parameterized route to avoid matching "batch" as :searchTerm
 			products.GET("/performance/batch", productHandler.BatchComparePerformance)
 			products.GET("/performance/:searchTerm", productHandler.ComparePerformance)
 			products.GET("/:id", productHandler.GetProduct)
-			products.PUT("/:id", productHandler.UpdateProduct)
-			products.DELETE("/:id", productHandler.DeleteProduct)
+
+			// Protected routes (require authentication)
+			products.POST("", authMiddleware.RequireVendorOrAdmin(), productHandler.CreateProduct)
+			products.PUT("/:id", authMiddleware.RequireVendorOrAdmin(), productHandler.UpdateProduct)
+			products.DELETE("/:id", authMiddleware.RequireVendorOrAdmin(), productHandler.DeleteProduct)
 		}
 	}
 

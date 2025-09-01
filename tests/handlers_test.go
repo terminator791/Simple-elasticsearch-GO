@@ -107,6 +107,7 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 			Category:      "Test Category",
 			Price:         99.99,
 			StockQuantity: 10,
+			SKU:           "TEST-SKU-001",
 		}
 
 		reqBody, _ := json.Marshal(createReq)

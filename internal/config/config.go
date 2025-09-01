@@ -13,6 +13,7 @@ type Config struct {
 	Database      DatabaseConfig
 	Elasticsearch ElasticsearchConfig
 	Server        ServerConfig
+	JWT           JWTConfig
 }
 
 // DatabaseConfig holds database configuration
@@ -32,6 +33,12 @@ type ElasticsearchConfig struct {
 // ServerConfig holds server configuration
 type ServerConfig struct {
 	Port string
+}
+
+// JWTConfig holds JWT configuration
+type JWTConfig struct {
+	SecretKey string
+	Issuer    string
 }
 
 // Load loads configuration from environment variables
@@ -59,6 +66,10 @@ func Load() *Config {
 		},
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8080"),
+		},
+		JWT: JWTConfig{
+			SecretKey: getEnv("JWT_SECRET_KEY", "your-256-bit-secret"),
+			Issuer:    getEnv("JWT_ISSUER", "ecommerce-api"),
 		},
 	}
 }

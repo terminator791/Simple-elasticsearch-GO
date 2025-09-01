@@ -1,22 +1,415 @@
-# E-commerce Product Catalog API Examples
+# Enterprise E-commerce API Examples
 
-This file contains example API requests for testing the E-commerce Product Catalog API.
+This file contains comprehensive example API requests for testing the Enterprise E-commerce API with authentication, cart management, and order processing.
 
-## Health Check
-GET http://localhost:8080/health
+### Authentication Endpoints
 
-## Create Product (CQRS Command - writes to PostgreSQL → indexes to Elasticsearch)
-POST http://localhost:8080/api/v1/products
+# Register a new customer
+POST http://localhost:8080/api/v1/auth/register
 Content-Type: application/json
 
 {
-  "name": "iPhone 15 Pro Max",
-  "description": "Latest Apple smartphone with titanium design, A17 Pro chip, and advanced camera system",
-  "brand": "Apple",
-  "category": "Smartphones",
-  "price": 1199.99,
-  "stock_quantity": 50
+  "email": "customer@example.com",
+  "password": "password123",
+  "first_name": "John",
+  "last_name": "Customer",
+  "role": "customer"
 }
+
+###
+
+# Register a new vendor
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "vendor@example.com",
+  "password": "password123",
+  "first_name": "Jane",
+  "last_name": "Vendor",
+  "role": "vendor"
+}
+
+###
+
+# Register an admin
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password123",
+  "first_name": "Admin",
+  "last_name": "User",
+  "role": "admin"
+}
+
+###
+
+# Login as customer
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "password": "password123"
+}
+
+###
+
+# Login as vendor
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "vendor@example.com",
+  "password": "password123"
+}
+
+###
+
+# Login as admin
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "password123"
+}
+
+### User Management
+
+# Get user profile
+GET http://localhost:8080/api/v1/users/profile
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Update user profile
+PUT http://localhost:8080/api/v1/users/profile
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "first_name": "Updated",
+  "last_name": "Name"
+}
+
+###
+
+# Get users by role (Admin only)
+GET http://localhost:8080/api/v1/users?role=vendor&page=1&size=10
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Product Management
+
+# Create a product (Vendor/Admin)
+POST http://localhost:8080/api/v1/products
+Authorization: Bearer {{vendor_token}}
+Content-Type: application/json
+
+{
+  "name": "Wireless Bluetooth Headphones",
+  "description": "Premium wireless headphones with active noise cancellation, 30-hour battery life, and crystal-clear sound quality. Perfect for music lovers and professionals.",
+  "brand": "AudioTech",
+  "category": "Electronics",
+  "price": 299.99,
+  "stock_quantity": 50,
+  "sku": "AT-WBH-001",
+  "weight": 0.6,
+  "dimensions": "22x18x8cm",
+  "image_urls": [
+    "https://example.com/headphones-main.jpg",
+    "https://example.com/headphones-side.jpg"
+  ],
+  "tags": ["wireless", "bluetooth", "noise-cancellation", "premium"]
+}
+
+###
+
+# Create another product
+POST http://localhost:8080/api/v1/products
+Authorization: Bearer {{vendor_token}}
+Content-Type: application/json
+
+{
+  "name": "Smartphone Case",
+  "description": "Durable protective case for smartphones with shock absorption and wireless charging compatibility.",
+  "brand": "ProtectPro",
+  "category": "Accessories",
+  "price": 24.99,
+  "stock_quantity": 100,
+  "sku": "PP-SC-002",
+  "weight": 0.1,
+  "dimensions": "16x8x1cm",
+  "image_urls": [
+    "https://example.com/case-front.jpg",
+    "https://example.com/case-back.jpg"
+  ],
+  "tags": ["protection", "smartphone", "wireless-charging"]
+}
+
+###
+
+# Get all products (Public)
+GET http://localhost:8080/api/v1/products?page=1&size=20
+
+###
+
+# Search products (Public)
+GET http://localhost:8080/api/v1/products/search?q=headphones&brand=AudioTech&min_price=200&max_price=400
+
+###
+
+# Search with multiple filters
+GET http://localhost:8080/api/v1/products/search?q=bluetooth&category=Electronics&sort_by=price&sort_order=asc
+
+###
+
+# Get specific product
+GET http://localhost:8080/api/v1/products/{{product_id}}
+
+###
+
+# Update product (Vendor/Admin)
+PUT http://localhost:8080/api/v1/products/{{product_id}}
+Authorization: Bearer {{vendor_token}}
+Content-Type: application/json
+
+{
+  "price": 279.99,
+  "stock_quantity": 45,
+  "description": "UPDATED: Premium wireless headphones with active noise cancellation, 35-hour battery life, and enhanced sound quality."
+}
+
+###
+
+### Shopping Cart
+
+# Add item to cart
+POST http://localhost:8080/api/v1/cart/items
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "product_id": "{{product_id}}",
+  "quantity": 2
+}
+
+###
+
+# Add another item to cart
+POST http://localhost:8080/api/v1/cart/items
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "product_id": "{{product_id_2}}",
+  "quantity": 1
+}
+
+###
+
+# Get cart
+GET http://localhost:8080/api/v1/cart
+Authorization: Bearer {{customer_token}}
+
+###
+
+# Update cart item quantity
+PUT http://localhost:8080/api/v1/cart/items/{{cart_item_id}}
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "quantity": 3
+}
+
+###
+
+# Remove item from cart
+DELETE http://localhost:8080/api/v1/cart/items/{{cart_item_id}}
+Authorization: Bearer {{customer_token}}
+
+###
+
+### Order Management
+
+# Create order from cart
+POST http://localhost:8080/api/v1/orders
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "shipping_address": {
+    "street": "123 Main Street, Apt 4B",
+    "city": "San Francisco",
+    "state": "CA",
+    "zip_code": "94105",
+    "country": "USA",
+    "phone": "+1-555-123-4567"
+  },
+  "billing_address": {
+    "street": "123 Main Street, Apt 4B",
+    "city": "San Francisco",
+    "state": "CA",
+    "zip_code": "94105",
+    "country": "USA",
+    "phone": "+1-555-123-4567"
+  },
+  "notes": "Please deliver between 9 AM and 5 PM. Ring doorbell twice."
+}
+
+###
+
+# Get user orders
+GET http://localhost:8080/api/v1/orders?page=1&size=10
+Authorization: Bearer {{customer_token}}
+
+###
+
+# Get specific order
+GET http://localhost:8080/api/v1/orders/{{order_id}}
+Authorization: Bearer {{customer_token}}
+
+###
+
+# Update order status (Vendor/Admin)
+PUT http://localhost:8080/api/v1/orders/{{order_id}}/status
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "status": "confirmed"
+}
+
+###
+
+# Update order status to processing
+PUT http://localhost:8080/api/v1/orders/{{order_id}}/status
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "status": "processing"
+}
+
+###
+
+# Update order status to shipped
+PUT http://localhost:8080/api/v1/orders/{{order_id}}/status
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "status": "shipped"
+}
+
+###
+
+# Cancel order (Customer/Admin)
+POST http://localhost:8080/api/v1/orders/{{order_id}}/cancel
+Authorization: Bearer {{customer_token}}
+
+###
+
+### Analytics (Admin Only)
+
+# Get order analytics
+GET http://localhost:8080/api/v1/admin/orders/analytics
+Authorization: Bearer {{admin_token}}
+
+###
+
+### Performance Comparison
+
+# Compare search performance
+GET http://localhost:8080/api/v1/products/performance/headphones
+
+###
+
+# Batch performance comparison
+GET http://localhost:8080/api/v1/products/performance/batch?terms=headphones,smartphone,bluetooth
+
+###
+
+### Health Check
+
+# Check API health
+GET http://localhost:8080/health
+
+###
+
+### Advanced Search Examples
+
+# Search with aggregations
+GET http://localhost:8080/api/v1/products/search?q=electronics&page=1&size=20
+
+###
+
+# Search by brand and category
+GET http://localhost:8080/api/v1/products/search?brand=AudioTech&brand=ProtectPro&category=Electronics
+
+###
+
+# Price range search
+GET http://localhost:8080/api/v1/products/search?min_price=20&max_price=300&sort_by=price&sort_order=desc
+
+###
+
+# Full-text search with sorting
+GET http://localhost:8080/api/v1/products/search?q=wireless bluetooth premium&sort_by=created_at&sort_order=desc
+
+###
+
+### Admin User Management
+
+# Get all vendors
+GET http://localhost:8080/api/v1/users?role=vendor
+Authorization: Bearer {{admin_token}}
+
+###
+
+# Get all customers
+GET http://localhost:8080/api/v1/users?role=customer
+Authorization: Bearer {{admin_token}}
+
+###
+
+# Get specific user
+GET http://localhost:8080/api/v1/users/{{user_id}}
+Authorization: Bearer {{admin_token}}
+
+###
+
+# Update user role
+PUT http://localhost:8080/api/v1/users/{{user_id}}
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "role": "vendor"
+}
+
+###
+
+# Deactivate user
+POST http://localhost:8080/api/v1/users/{{user_id}}/deactivate
+Authorization: Bearer {{admin_token}}
+
+###
+
+# Activate user
+POST http://localhost:8080/api/v1/users/{{user_id}}/activate
+Authorization: Bearer {{admin_token}}
+
+###
+
+# Clear cart
+DELETE http://localhost:8080/api/v1/cart
+Authorization: Bearer {{customer_token}}
 
 ## Search Products (CQRS Query - uses Elasticsearch exclusively)
 
