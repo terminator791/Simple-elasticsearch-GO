@@ -22,8 +22,8 @@ type Product struct {
 	IsActive      bool      `json:"is_active" db:"is_active"`
 	Weight        *float64  `json:"weight,omitempty" db:"weight"`
 	Dimensions    *string   `json:"dimensions,omitempty" db:"dimensions"`
-	ImageURLs     []string  `json:"image_urls,omitempty" db:"image_urls"`
-	Tags          []string  `json:"tags,omitempty" db:"tags"`
+	ImageURLs     *[]string `json:"image_urls,omitempty" db:"image_urls"`
+	Tags          *[]string `json:"tags,omitempty" db:"tags"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 	
@@ -46,8 +46,8 @@ type CreateProductRequest struct {
 	SKU           string     `json:"sku" binding:"required"`
 	Weight        *float64   `json:"weight,omitempty" binding:"omitempty,gt=0"`
 	Dimensions    *string    `json:"dimensions,omitempty"`
-	ImageURLs     []string   `json:"image_urls,omitempty"`
-	Tags          []string   `json:"tags,omitempty"`
+	ImageURLs     *[]string  `json:"image_urls,omitempty"`
+	Tags          *[]string  `json:"tags,omitempty"`
 }
 
 // UpdateProductRequest represents the request for updating a product
@@ -62,8 +62,8 @@ type UpdateProductRequest struct {
 	IsActive      *bool      `json:"is_active,omitempty"`
 	Weight        *float64   `json:"weight,omitempty"`
 	Dimensions    *string    `json:"dimensions,omitempty"`
-	ImageURLs     []string   `json:"image_urls,omitempty"`
-	Tags          []string   `json:"tags,omitempty"`
+	ImageURLs     *[]string  `json:"image_urls,omitempty"`
+	Tags          *[]string  `json:"tags,omitempty"`
 }
 
 // SearchRequest represents search parameters

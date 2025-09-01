@@ -57,10 +57,19 @@ func (c *Client) CreateProduct(product *models.Product) error {
 		INSERT INTO products (id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`
 
+	// Handle nil slices
+	var imageURLs, tags pq.StringArray
+	if product.ImageURLs != nil {
+		imageURLs = pq.StringArray(*product.ImageURLs)
+	}
+	if product.Tags != nil {
+		tags = pq.StringArray(*product.Tags)
+	}
+
 	_, err := c.db.Exec(query, 
 		product.ID, product.VendorID, product.Name, product.Description, product.Brand, product.Category, 
 		product.Price, product.StockQuantity, product.SKU, product.IsActive, product.Weight, product.Dimensions, 
-		pq.Array(product.ImageURLs), pq.Array(product.Tags), product.CreatedAt, product.UpdatedAt)
+		imageURLs, tags, product.CreatedAt, product.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create product: %w", err)
 	}
@@ -71,15 +80,30 @@ func (c *Client) CreateProduct(product *models.Product) error {
 // GetProductByID retrieves a product by ID
 func (c *Client) GetProductByID(id string) (*models.Product, error) {
 	var product models.Product
+	var imageURLs, tags pq.StringArray
+	
 	query := `SELECT id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at 
 			  FROM products WHERE id = $1`
 
-	err := c.db.Get(&product, query, id)
+	err := c.db.QueryRow(query, id).Scan(
+		&product.ID, &product.VendorID, &product.Name, &product.Description, &product.Brand, &product.Category, 
+		&product.Price, &product.StockQuantity, &product.SKU, &product.IsActive, &product.Weight, &product.Dimensions, 
+		&imageURLs, &tags, &product.CreatedAt, &product.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get product: %w", err)
+	}
+
+	// Convert pq.StringArray to *[]string
+	if len(imageURLs) > 0 {
+		imgURLs := []string(imageURLs)
+		product.ImageURLs = &imgURLs
+	}
+	if len(tags) > 0 {
+		tagSlice := []string(tags)
+		product.Tags = &tagSlice
 	}
 
 	return &product, nil
@@ -115,35 +139,35 @@ func (c *Client) UpdateProduct(id string, updates *models.UpdateProductRequest) 
 		setParts = append(setParts, "stock_quantity = :stock_quantity")
 		args["stock_quantity"] = *updates.StockQuantity
 	}
+	if updates.SKU != nil {
+		setParts = append(setParts, "sku = :sku")
+		args["sku"] = *updates.SKU
+	}
+	if updates.IsActive != nil {
+		setParts = append(setParts, "is_active = :is_active")
+		args["is_active"] = *updates.IsActive
+	}
+	if updates.Weight != nil {
+		setParts = append(setParts, "weight = :weight")
+		args["weight"] = *updates.Weight
+	}
+	if updates.Dimensions != nil {
+		setParts = append(setParts, "dimensions = :dimensions")
+		args["dimensions"] = *updates.Dimensions
+	}
+	if updates.ImageURLs != nil {
+		setParts = append(setParts, "image_urls = :image_urls")
+		args["image_urls"] = pq.StringArray(*updates.ImageURLs)
+	}
+	if updates.Tags != nil {
+		setParts = append(setParts, "tags = :tags")
+		args["tags"] = pq.StringArray(*updates.Tags)
+	}
 
 	if len(setParts) == 0 {
 		return c.GetProductByID(id)
 	}
 
-	query := fmt.Sprintf(`
-		UPDATE products 
-		SET %s, updated_at = CURRENT_TIMESTAMP 
-		WHERE id = :id
-		RETURNING id, name, description, brand, category, price, stock_quantity, created_at, updated_at`,
-		fmt.Sprintf("%v", setParts))
-
-	query = fmt.Sprintf(`
-		UPDATE products 
-		SET %s, updated_at = CURRENT_TIMESTAMP 
-		WHERE id = :id
-		RETURNING id, name, description, brand, category, price, stock_quantity, created_at, updated_at`,
-		fmt.Sprintf("%s", setParts[0]))
-
-	for i := 1; i < len(setParts); i++ {
-		query = fmt.Sprintf(`
-		UPDATE products 
-		SET %s, %s, updated_at = CURRENT_TIMESTAMP 
-		WHERE id = :id
-		RETURNING id, name, description, brand, category, price, stock_quantity, created_at, updated_at`,
-			setParts[0], setParts[i])
-	}
-
-	// Rebuild query properly
 	setClause := ""
 	for i, part := range setParts {
 		if i > 0 {
@@ -152,13 +176,16 @@ func (c *Client) UpdateProduct(id string, updates *models.UpdateProductRequest) 
 		setClause += part
 	}
 
-	query = fmt.Sprintf(`
+	query := fmt.Sprintf(`
 		UPDATE products 
 		SET %s, updated_at = CURRENT_TIMESTAMP 
 		WHERE id = :id
-		RETURNING id, name, description, brand, category, price, stock_quantity, created_at, updated_at`,
+		RETURNING id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at`,
 		setClause)
 
+	var product models.Product
+	var imageURLs, tags pq.StringArray
+	
 	rows, err := c.db.NamedQuery(query, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update product: %w", err)
@@ -169,10 +196,22 @@ func (c *Client) UpdateProduct(id string, updates *models.UpdateProductRequest) 
 		return nil, nil
 	}
 
-	var product models.Product
-	err = rows.StructScan(&product)
+	err = rows.Scan(
+		&product.ID, &product.VendorID, &product.Name, &product.Description, &product.Brand, &product.Category,
+		&product.Price, &product.StockQuantity, &product.SKU, &product.IsActive, &product.Weight, &product.Dimensions,
+		&imageURLs, &tags, &product.CreatedAt, &product.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan updated product: %w", err)
+	}
+
+	// Convert pq.StringArray to *[]string
+	if len(imageURLs) > 0 {
+		imgURLs := []string(imageURLs)
+		product.ImageURLs = &imgURLs
+	}
+	if len(tags) > 0 {
+		tagSlice := []string(tags)
+		product.Tags = &tagSlice
 	}
 
 	return &product, nil
@@ -218,18 +257,44 @@ func (c *Client) SearchProducts(searchTerm string) ([]models.Product, time.Durat
 
 	var products []models.Product
 	query := `
-		SELECT id, name, description, brand, category, price, stock_quantity, created_at, updated_at 
+		SELECT id, vendor_id, name, description, brand, category, price, stock_quantity, sku, is_active, weight, dimensions, image_urls, tags, created_at, updated_at 
 		FROM products 
 		WHERE name ILIKE $1 OR description ILIKE $1 OR brand ILIKE $1 OR category ILIKE $1
 		ORDER BY created_at DESC`
 
 	searchPattern := "%" + searchTerm + "%"
-	err := c.db.Select(&products, query, searchPattern)
+	rows, err := c.db.Query(query, searchPattern)
 
 	duration := time.Since(start)
 
 	if err != nil {
 		return nil, duration, fmt.Errorf("failed to search products: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var product models.Product
+		var imageURLs, tags pq.StringArray
+		
+		err := rows.Scan(
+			&product.ID, &product.VendorID, &product.Name, &product.Description, &product.Brand, &product.Category,
+			&product.Price, &product.StockQuantity, &product.SKU, &product.IsActive, &product.Weight, &product.Dimensions,
+			&imageURLs, &tags, &product.CreatedAt, &product.UpdatedAt)
+		if err != nil {
+			return nil, duration, fmt.Errorf("failed to scan product: %w", err)
+		}
+
+		// Convert pq.StringArray to *[]string
+		if len(imageURLs) > 0 {
+			imgURLs := []string(imageURLs)
+			product.ImageURLs = &imgURLs
+		}
+		if len(tags) > 0 {
+			tagSlice := []string(tags)
+			product.Tags = &tagSlice
+		}
+
+		products = append(products, product)
 	}
 
 	return products, duration, nil
@@ -483,7 +548,10 @@ func (c *Client) GetCartItems(userID uuid.UUID) ([]models.CartItem, error) {
 			   p.id as "product.id", p.name as "product.name", p.description as "product.description",
 			   p.brand as "product.brand", p.category as "product.category", p.price as "product.price",
 			   p.stock_quantity as "product.stock_quantity", p.sku as "product.sku", 
-			   p.is_active as "product.is_active"
+			   p.is_active as "product.is_active", p.weight as "product.weight", 
+			   p.dimensions as "product.dimensions", p.image_urls as "product.image_urls", 
+			   p.tags as "product.tags", p.created_at as "product.created_at", 
+			   p.updated_at as "product.updated_at"
 		FROM cart_items ci 
 		JOIN products p ON ci.product_id = p.id 
 		WHERE ci.user_id = $1 
@@ -498,14 +566,26 @@ func (c *Client) GetCartItems(userID uuid.UUID) ([]models.CartItem, error) {
 	for rows.Next() {
 		var item models.CartItem
 		var product models.Product
+		var imageURLs, tags pq.StringArray
 		
 		err := rows.Scan(
 			&item.ID, &item.UserID, &item.ProductID, &item.Quantity, &item.CreatedAt, &item.UpdatedAt,
 			&product.ID, &product.Name, &product.Description, &product.Brand, &product.Category,
-			&product.Price, &product.StockQuantity, &product.SKU, &product.IsActive,
+			&product.Price, &product.StockQuantity, &product.SKU, &product.IsActive, &product.Weight,
+			&product.Dimensions, &imageURLs, &tags, &product.CreatedAt, &product.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan cart item: %w", err)
+		}
+		
+		// Convert pq.StringArray to *[]string
+		if len(imageURLs) > 0 {
+			imgURLs := []string(imageURLs)
+			product.ImageURLs = &imgURLs
+		}
+		if len(tags) > 0 {
+			tagSlice := []string(tags)
+			product.Tags = &tagSlice
 		}
 		
 		item.Product = &product
